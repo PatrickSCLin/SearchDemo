@@ -10,15 +10,10 @@ import UIKit
 
 class ResultItemCell: UITableViewCell {
 
-    override func awakeFromNib() {
-        super.awakeFromNib()
-        // Initialization code
-    }
-
-    override func setSelected(_ selected: Bool, animated: Bool) {
-        super.setSelected(selected, animated: animated)
-
-        // Configure the view for the selected state
-    }
+    @IBOutlet var iconView: UIImageView!
+    
+    @IBOutlet var appTitle: UILabel!
+    
+    @IBOutlet var appTags: UILabel!
 
 }

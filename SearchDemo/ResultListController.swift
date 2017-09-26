@@ -7,89 +7,129 @@
 //
 
 import UIKit
+import Alamofire
+import Kingfisher
+import RxCocoa
+import RxSwift
 
 class ResultListController: UITableViewController {
+    
+    let disposeBag = DisposeBag()
+    
+    var results: [ResultItem] = []
+    
+    @IBOutlet var searchBar: UISearchBar!
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        // Uncomment the following line to preserve selection between presentations
-        // self.clearsSelectionOnViewWillAppear = false
-
-        // Uncomment the following line to display an Edit button in the navigation bar for this view controller.
-        // self.navigationItem.rightBarButtonItem = self.editButtonItem()
-    }
-
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
-    }
-
-    // MARK: - Table view data source
-
+    // MARK: Table Methods
+    
     override func numberOfSections(in tableView: UITableView) -> Int {
-        // #warning Incomplete implementation, return the number of sections
-        return 0
+        
+        return 1
+        
     }
-
+    
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        // #warning Incomplete implementation, return the number of rows
-        return 0
+        
+        return results.count
+        
     }
-
-    /*
+    
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "reuseIdentifier", for: indexPath)
-
-        // Configure the cell...
-
+        
+        let cell = tableView.dequeueReusableCell(withIdentifier: "ResultItemCell", for: indexPath) as! ResultItemCell
+        
+        let item = self.results[indexPath.row]
+        
+        if let url = item.artworkUrl60, let imageUrl = URL(string: url) {
+            
+            cell.iconView.kf.setImage(with: imageUrl)
+            
+        }
+        
+        cell.appTitle.text = item.trackName
+        
+        cell.appTags.text = item.genres?.reduce("") { $0 + (($0 != "") ? ", " : "") + $1 }
+        
         return cell
+        
     }
-    */
-
-    /*
-    // Override to support conditional editing of the table view.
-    override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-        // Return false if you do not want the specified item to be editable.
-        return true
+    
+    override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+        
+        return 60
+        
     }
-    */
-
-    /*
-    // Override to support editing the table view.
-    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
-        if editingStyle == .delete {
-            // Delete the row from the data source
-            tableView.deleteRows(at: [indexPath], with: .fade)
-        } else if editingStyle == .insert {
-            // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
-        }    
+    
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        
+        let item = self.results[indexPath.row]
+        
+        if let url = item.trackViewUrl, let appUrl = URL(string: url) {
+            
+            UIApplication.shared.open(appUrl, options: [:], completionHandler: nil)
+            
+        }
+        
     }
-    */
-
-    /*
-    // Override to support rearranging the table view.
-    override func tableView(_ tableView: UITableView, moveRowAt fromIndexPath: IndexPath, to: IndexPath) {
+    
+    // MARK: Init Methods
+    
+    override func viewDidLoad() {
+        
+        super.viewDidLoad()
+        
+        self.tableView
+        .rx.didScroll
+        .throttle(0.5, scheduler: MainScheduler.instance)
+        .subscribe(onNext: { _ in
+            
+            self.view.endEditing(false)
+            
+        }).addDisposableTo(self.disposeBag)
+        
+        self.searchBar
+        .rx.text
+        .orEmpty
+        .throttle(0.5, scheduler: MainScheduler.instance)
+        .distinctUntilChanged()
+        .subscribe(onNext: { (searchText: String) in
+          
+            guard let searchText = searchText.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return }
+            
+            Alamofire.request("https://itunes.apple.com/search?term=\(searchText)&limit=20&entity=software&country=tw").responseJSON { (result: DataResponse<Any>) in
+                
+                if let json = result.value as? [String: Any], let results = json["results"] as? [[String: Any]] {
+                    
+                    print(results.count)
+                    
+                    var new_results = [ResultItem]()
+                    
+                    for (_, jsonItem) in results.enumerated() {
+                        
+                        if let resultItem = ResultItem(JSON: jsonItem) { new_results.append(resultItem) }
+                        
+                    }
+                    
+                    self.results = new_results
+                    
+                    self.tableView.reloadData()
+                    
+                }
+                
+            }
+            
+        }).addDisposableTo(self.disposeBag)
 
     }
-    */
 
-    /*
-    // Override to support conditional rearranging of the table view.
-    override func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
-        // Return false if you do not want the item to be re-orderable.
-        return true
+}
+
+extension ResultListController: UISearchBarDelegate {
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        
+        self.view.endEditing(true)
+        
     }
-    */
-
-    /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        // Get the new view controller using segue.destinationViewController.
-        // Pass the selected object to the new view controller.
-    }
-    */
-
+    
 }
